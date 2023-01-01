@@ -13,6 +13,7 @@
 		7A27F71D295E6F74007F015D /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7A27F71C295E6F74007F015D /* Preview Assets.xcassets */; };
 		7A27F722295E6F74007F015D /* Authenticator.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 7A27F720295E6F74007F015D /* Authenticator.xcdatamodeld */; };
 		7A27F72B295E732E007F015D /* CoreDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A27F72A295E732E007F015D /* CoreDataManager.swift */; };
+		7A5D2E7E2961E01C0084B5BA /* main.js in Resources */ = {isa = PBXBuildFile; fileRef = 7A5D2E7D2961E01C0084B5BA /* main.js */; };
 		D0C514A01258A8AF566B86A8 /* Pods_Authenticator.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5BAA74645DC15A909B9BEBB8 /* Pods_Authenticator.framework */; };
 /* End PBXBuildFile section */
 
@@ -27,6 +28,7 @@
 		7A27F721295E6F74007F015D /* Authenticator.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Authenticator.xcdatamodel; sourceTree = "<group>"; };
 		7A27F723295E6F74007F015D /* Authenticator.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Authenticator.entitlements; sourceTree = "<group>"; };
 		7A27F72A295E732E007F015D /* CoreDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataManager.swift; sourceTree = "<group>"; };
+		7A5D2E7D2961E01C0084B5BA /* main.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = main.js; sourceTree = "<group>"; };
 		F60B71E76733F93A5ABD1C8C /* Pods-Authenticator.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Authenticator.debug.xcconfig"; path = "Target Support Files/Pods-Authenticator/Pods-Authenticator.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -73,6 +75,7 @@
 			children = (
 				7A27F715295E6F73007F015D /* AuthenticatorApp.swift */,
 				7A27F717295E6F73007F015D /* ContentView.swift */,
+				7A5D2E7D2961E01C0084B5BA /* main.js */,
 				7A27F729295E7312007F015D /* Managers */,
 				7A27F723295E6F74007F015D /* Authenticator.entitlements */,
 				7A27F720295E6F74007F015D /* Authenticator.xcdatamodeld */,
@@ -104,7 +107,6 @@
 				F60B71E76733F93A5ABD1C8C /* Pods-Authenticator.debug.xcconfig */,
 				69A6AFB3ABC65E5A8AF38C76 /* Pods-Authenticator.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -168,6 +170,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A5D2E7E2961E01C0084B5BA /* main.js in Resources */,
 				7A27F71D295E6F74007F015D /* Preview Assets.xcassets in Resources */,
 				7A27F71A295E6F74007F015D /* Assets.xcassets in Resources */,
 			);
