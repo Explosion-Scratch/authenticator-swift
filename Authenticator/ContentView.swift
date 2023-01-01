@@ -3,6 +3,9 @@
 import SwiftUI
 import CoreData
 
+//TODO: Add deleting and editing items
+//TODO: Allow export/import of JSON for all items
+
 var text = [
     "no_selection": "Select an item from the menu =)",
     "add_item": "Add item",
