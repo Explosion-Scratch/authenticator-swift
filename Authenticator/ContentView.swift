@@ -9,10 +9,13 @@ var text = [
     "no_title": "No title",
     "add_title": "Add 2fa code",
     "url_placeholder": "Paste URL here",
+    "auth_accounts": "Accounts: ",
+    "generate_code_err": "Error generating code",
 ]
 
 struct ContentView: View {
-    @State var addingItem = true
+    @State var addingItem = false
+    @State var selectedItem: Item? = nil
     @Environment(\.managedObjectContext) private var viewContext
     
     @FetchRequest(
@@ -22,16 +25,68 @@ struct ContentView: View {
     init() {
         initializeJS()
     }
+    
+    private func deleteItem(at offsets: IndexSet) {
+        offsets.forEach {index in
+            let item = allItems[index]
+            viewContext.delete(item)
+            do {
+                try viewContext.save()
+            } catch {
+                print(error.localizedDescription)
+            }
+        }
+    }
+    
+    private func getKey(_ key: String, cb: @escaping (JSValue?) -> Void) -> String {
+        if key.isEmpty {
+            return "Error"
+        }
+        
+        let callback : @convention(block) (JSValue?) -> Void = { calledBackValue in
+            let _ = print("calledBackValue:", calledBackValue)
+            cb(calledBackValue)
+        }
+        
+        let js_cb = JSValue.init(object: callback, in: jsContext)
+        
+        let result = jsContext?
+            .objectForKeyedSubscript("getToken")
+            .call(withArguments: [selectedItem?.secretKey!, js_cb])
+        
+        return ""
+    }
+    
+    private func updateCode(){
+        getKey((selectedItem?.secretKey!)!, cb: {value in
+            print("Got: ", value)
+            authCode = value!.toString()
+            loading = false
+            return
+        })
+    }
+    
+    @State private var loading = true
+    @State private var authCode = ""
+    @State private var error = ""
+    @State private var progressAmount = 10.0;
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     var body: some View {
         ZStack {
             NavigationView {
                 List {
-                    ForEach(allItems){item in
+                    ForEach(allItems) {item in
                         HStack {
                             Text(item.label ?? text["no_title"]!)
+                        }.onTapGesture {
+                            error = ""
+                            loading = true
+                            selectedItem = item
                         }
                     }
                 }
+                .navigationTitle(text["auth_accounts"]!)
+                .listStyle(.sidebar)
                 .toolbar {
                     ToolbarItem {
                         Button(action: {
@@ -41,11 +96,47 @@ struct ContentView: View {
                         }
                     }
                 }
-                Text(text["no_selection"]!)
+                VStack {
+                    if (selectedItem != nil) {
+                        ProgressView(value: progressAmount, total: 100)
+                            .onReceive(timer, perform: {a in
+                                progressAmount = (jsContext?.objectForKeyedSubscript("getTimeRemaining").call(withArguments: []).toDouble())!
+                            })
+                        Spacer()
+                        VStack {
+                            if loading {
+                                ProgressView()
+                                    .cornerRadius(0)
+                            } else if error.isEmpty {
+                                Text(authCode)
+                                    .font(.largeTitle)
+                                    .fontWeight(.heavy)
+                            } else {
+                                Text("There was an error: \(error)")
+                            }
+                            Text(selectedItem?.label ?? "No label")
+                        }.task {
+                            if selectedItem == nil {
+                                return
+                            }
+                            if selectedItem?.secretKey == nil {
+                                error = text["generate_code_err"]!
+                                return
+                            }
+                            //so we don't need to mark updateCode as objc
+                            updateCode()
+                        }.onReceive(timer, perform: {a in
+                            updateCode()
+                        })
+                        Spacer()
+                    } else {
+                        Text(text["no_selection"]!)
+                    }
+                }
             }
             
             .sheet(isPresented: $addingItem, content: {
-                AddItem()
+                AddItem().environment(\.managedObjectContext, CoreDataManager.shared.persistentContainer.viewContext)
             })
         }
     }
@@ -80,15 +171,54 @@ func initializeJS(){
     }
 }
 
-func addOtp(){
+class ItemClass: NSObject {
+    var dateCreated: Date = Date()
+    var label: String = ""
+    // var lastCopied: Date = Date()
+    var secretKey: String = ""
+    // var namespace: String = ""
+    var type: String = ""
+    var account: String = ""
     
+    init(account: String?, dateCreated: Date, label: String, secretKey: String, type: String) {
+        self.dateCreated = dateCreated
+        self.label = label
+        self.secretKey = secretKey
+        self.type = type
+        self.account = account ?? ""
+    }
 }
 
 struct AddItem: View {
+    @Environment (\.managedObjectContext) private var viewContext
     @Environment (\.presentationMode) var presentationMode
     @State var input = "test"
     @State var disabled = true
     @State var status = "nothing"
+    
+    func addOtp(otp: String){
+        do {
+            let o = otp.decodeUrl()
+            guard let parsed = jsContext?.objectForKeyedSubscript("parseOTP")?.call(withArguments: [o!]).toDictionary() else {
+                print("Parsing otp failed: \(otp)")
+                return
+            }
+            let item = Item(context: viewContext)
+            print(item)
+            for (key, value) in parsed {
+                print("Value: \(value) for key: \(key)")
+            }
+            item.dateCreated = Date()
+            item.accountName = (parsed["account"] as? String) ?? ""
+            item.label = parsed["name"] as! String
+            item.secretKey = parsed["secret"] as! String
+            item.type = parsed["type"] as! String
+            try viewContext.save()
+        } catch {
+            print(error.localizedDescription)
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .trailing) {
             Button {
@@ -117,27 +247,22 @@ struct AddItem: View {
                         disabled = true
                     }
                     return
-                    let valid = NSRegularExpression("otpauth://([ht]otp)/(?:[a-zA-Z0-9%]+:)?([^?]+)?secret=([0-9A-Za-z]+)(?:.*(?:<?counter=)([0-9]+))?")
-                    if (valid.matches(input)){
-                        let decoded = input.decodeUrl()
-                        let url = URL(string: decoded!)
-                        let components = URLComponents(url: URL(string: decoded!)!, resolvingAgainstBaseURL: false)
-                        disabled = false
-                    } else {disabled = true}
                 })
             if !input.isEmpty {
                 Text(status)
             }
             Button(action: {
-                addOtp(input)
+                if disabled {return} else {
+                    addOtp(otp: input)
+                }
             }, label: {
                 Text("Save")
             })
             .niceButton(
                 foregroundColor: disabled ? Color.gray : Color.white,
-                backgroundColor: disabled ? Color("#00000000") : Color.accentColor
+                backgroundColor: disabled ?  Color.gray.opacity(0) : Color.accentColor
             )
-                .border(disabled ? .gray : Color("#00000000"))
+                .border(disabled ? .gray : Color.gray.opacity(0))
                 .cornerRadius(5)
                 .opacity(disabled ? 0.3 : 1)
                 .onHover { inside in
