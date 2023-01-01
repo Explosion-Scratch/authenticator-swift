@@ -91,7 +91,7 @@ struct ContentView: View {
                     ForEach(allItems) {item in
                         HStack {
                             Text(item.label ?? text["no_title"]!)
-                                .foregroundColor(Color.accentColor)
+                                .italic(item.uuid == selectedItem?.uuid)
                         }.onTapGesture {
                             error = ""
                             loading = true
@@ -135,10 +135,13 @@ struct ContentView: View {
                                     .opacity(0.4)
                                     .font(.body)
                                     .italic()
-                                Text("\(text["last_copied"]!) \(formatDate(date: (selectedItem?.lastCopied)!))")
-                                    .opacity(0.4)
-                                    .font(.body)
-                                    .italic()
+                                //TODO: Figure out why this doesn't work
+                                //if ((selectedItem?.timesCopied ?? 0) > 0){
+                                    Text("\(text["last_copied"]!) \(formatDate(date: (selectedItem?.lastCopied)!))")
+                                        .opacity(0.4)
+                                        .font(.body)
+                                        .italic()
+                                //}
                             }.task {
                                 if selectedItem == nil {
                                     return
@@ -182,6 +185,15 @@ struct ContentView: View {
                     justCopied = true
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.writeObjects([authCode as NSString])
+                    do {
+                        if selectedItem?.timesCopied == nil {
+                            selectedItem?.timesCopied = 0
+                        }
+                        selectedItem?.timesCopied = selectedItem?.timesCopied ?? 0 + 1
+                        try viewContext.save()
+                    } catch {
+                        print(error.localizedDescription)
+                    }
                     Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { timer in
                         justCopied = false
                     }
