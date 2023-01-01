@@ -6,5 +6,5 @@ target 'Authenticator' do
   use_frameworks!
 
   # Pods for Authenticator
-  pod 'Introspect'
+  pod "ToastViewSwift"
 end

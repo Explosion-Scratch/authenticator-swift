@@ -8,5 +8,6 @@
         <attribute name="namespace" optional="YES" attributeType="String"/>
         <attribute name="secretKey" attributeType="String" allowsCloudEncryption="YES"/>
         <attribute name="type" attributeType="String" defaultValueString="otp"/>
+        <attribute name="uuid" attributeType="UUID" usesScalarValueType="NO"/>
     </entity>
 </model>

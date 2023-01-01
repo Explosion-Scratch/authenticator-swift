@@ -11,6 +11,11 @@ var text = [
     "url_placeholder": "Paste URL here",
     "auth_accounts": "Accounts: ",
     "generate_code_err": "Error generating code",
+    "last_copied": "Last copied on",
+    "created_on": "Created on",
+    "copied": "Copied!",
+    "click_to_copy": "Click anywhere to copy",
+    "nothing_yet": "Nothing here yet, add a new auth URL?",
 ]
 
 struct ContentView: View {
@@ -44,7 +49,6 @@ struct ContentView: View {
         }
         
         let callback : @convention(block) (JSValue?) -> Void = { calledBackValue in
-            let _ = print("calledBackValue:", calledBackValue)
             cb(calledBackValue)
         }
         
@@ -59,18 +63,24 @@ struct ContentView: View {
     
     private func updateCode(){
         getKey((selectedItem?.secretKey!)!, cb: {value in
-            print("Got: ", value)
             authCode = value!.toString()
             loading = false
             return
         })
     }
     
+    private func formatDate(date: Date) -> String{
+        let format = DateFormatter()
+        format.dateFormat = "MMM d, yyyy h:mm a"
+        return format.string(from: date)
+    }
+    
     @State private var loading = true
     @State private var authCode = ""
     @State private var error = ""
+    @State private var justCopied = false
     @State private var progressAmount = 10.0;
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     var body: some View {
         ZStack {
             NavigationView {
@@ -78,6 +88,7 @@ struct ContentView: View {
                     ForEach(allItems) {item in
                         HStack {
                             Text(item.label ?? text["no_title"]!)
+                                .foregroundColor(Color.accentColor)
                         }.onTapGesture {
                             error = ""
                             loading = true
@@ -96,47 +107,86 @@ struct ContentView: View {
                         }
                     }
                 }
-                VStack {
-                    if (selectedItem != nil) {
-                        ProgressView(value: progressAmount, total: 100)
-                            .onReceive(timer, perform: {a in
-                                progressAmount = (jsContext?.objectForKeyedSubscript("getTimeRemaining").call(withArguments: []).toDouble())!
+                ZStack(alignment: .bottom) {
+                    VStack {
+                        if (selectedItem != nil) {
+                            ProgressView(value: progressAmount, total: 100)
+                                .onReceive(timer, perform: {a in
+                                    progressAmount = (jsContext?.objectForKeyedSubscript("getTimeRemaining").call(withArguments: []).toDouble())!
+                                })
+                            Spacer()
+                            VStack {
+                                if loading {
+                                    ProgressView()
+                                        .cornerRadius(0)
+                                } else if error.isEmpty {
+                                    Text(authCode)
+                                        .font(.largeTitle)
+                                        .fontWeight(.heavy)
+                                } else {
+                                    Text("There was an error: \(error)")
+                                }
+                                Text(selectedItem?.label ?? "No label")
+                                Text("\(text["created_on"]!) \(formatDate(date: (selectedItem?.dateCreated)!))")
+                                    .padding(.top)
+                                    .opacity(0.4)
+                                    .font(.body)
+                                    .italic()
+                                Text("\(text["last_copied"]!) \(formatDate(date: (selectedItem?.lastCopied)!))")
+                                    .opacity(0.4)
+                                    .font(.body)
+                                    .italic()
+                            }.task {
+                                if selectedItem == nil {
+                                    return
+                                }
+                                if selectedItem?.secretKey == nil {
+                                    error = text["generate_code_err"]!
+                                    return
+                                }
+                                //so we don't need to mark updateCode as objc
+                                updateCode()
+                            }.onReceive(timer, perform: {a in
+                                updateCode()
                             })
-                        Spacer()
-                        VStack {
-                            if loading {
-                                ProgressView()
-                                    .cornerRadius(0)
-                            } else if error.isEmpty {
-                                Text(authCode)
-                                    .font(.largeTitle)
-                                    .fontWeight(.heavy)
+                            Spacer()
+                        } else {
+                            if (allItems.isEmpty) {
+                                Text(text["nothing_yet"]!)
+                                    .italic()
+                                Button(action: {
+                                    addingItem = true
+                                }, label: {
+                                    Label(text["add_item"]!, systemImage: "plus")
+                                })
+                                    .niceButton(foregroundColor: Color.white, backgroundColor: Color.accentColor)
+                                    .frame(maxWidth: 100)
                             } else {
-                                Text("There was an error: \(error)")
+                                Text(text["no_selection"]!)
                             }
-                            Text(selectedItem?.label ?? "No label")
-                        }.task {
-                            if selectedItem == nil {
-                                return
-                            }
-                            if selectedItem?.secretKey == nil {
-                                error = text["generate_code_err"]!
-                                return
-                            }
-                            //so we don't need to mark updateCode as objc
-                            updateCode()
-                        }.onReceive(timer, perform: {a in
-                            updateCode()
-                        })
-                        Spacer()
-                    } else {
-                        Text(text["no_selection"]!)
+                        }
+                    }
+                    if (selectedItem != nil){
+                        Text(justCopied ? text["copied"]! : text["click_to_copy"]!)
+                            .padding(.bottom)
+                            .italic()
+                            .foregroundColor(.accentColor)
+                    }
+                }
+                // End zstack
+            }.onTapGesture {
+                if selectedItem != nil && authCode != nil && loading != true {
+                    justCopied = true
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.writeObjects([authCode as NSString])
+                    Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { timer in
+                        justCopied = false
                     }
                 }
             }
             
             .sheet(isPresented: $addingItem, content: {
-                AddItem().environment(\.managedObjectContext, CoreDataManager.shared.persistentContainer.viewContext)
+                AddItem(addingItem: $addingItem).environment(\.managedObjectContext, CoreDataManager.shared.persistentContainer.viewContext)
             })
         }
     }
@@ -190,6 +240,7 @@ class ItemClass: NSObject {
 }
 
 struct AddItem: View {
+    @Binding var addingItem: Bool
     @Environment (\.managedObjectContext) private var viewContext
     @Environment (\.presentationMode) var presentationMode
     @State var input = "test"
@@ -209,6 +260,7 @@ struct AddItem: View {
                 print("Value: \(value) for key: \(key)")
             }
             item.dateCreated = Date()
+            item.uuid = UUID()
             item.accountName = (parsed["account"] as? String) ?? ""
             item.label = parsed["name"] as! String
             item.secretKey = parsed["secret"] as! String
@@ -248,12 +300,10 @@ struct AddItem: View {
                     }
                     return
                 })
-            if !input.isEmpty {
-                Text(status)
-            }
             Button(action: {
                 if disabled {return} else {
                     addOtp(otp: input)
+                    addingItem = false
                 }
             }, label: {
                 Text("Save")
