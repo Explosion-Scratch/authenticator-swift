@@ -6,15 +6,11 @@ class CoreDataManager {
     
     static let shared: CoreDataManager = CoreDataManager()
     private init() {
-        do {
-            persistentContainer = NSPersistentContainer(name: "Authenticator")
-            persistentContainer.loadPersistentStores {description, error in
-                if let error = error {
-                    fatalError("Unable to create Core Data \(error)")
-                }
+        persistentContainer = NSPersistentContainer(name: "Authenticator")
+        persistentContainer.loadPersistentStores {description, error in
+            if let error = error {
+                fatalError("Unable to create Core Data \(error)")
             }
-        } catch {
-            fatalError("Error: \(error)")
         }
     }
 }

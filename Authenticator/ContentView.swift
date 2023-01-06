@@ -41,12 +41,16 @@ struct ContentView: View {
             do {
                 try viewContext.save()
             } catch {
-                print(error.localizedDescription)
+                print("View save [deleteItem]: ", error.localizedDescription)
             }
         }
     }
     
     private func getKey(_ key: String, cb: @escaping (JSValue?) -> Void) -> String {
+        if selectedItem == nil{
+            print("No selected item")
+            return "Error: No selected item"
+        }
         if key.isEmpty {
             return "Error"
         }
@@ -56,20 +60,53 @@ struct ContentView: View {
         }
         
         let js_cb = JSValue.init(object: callback, in: jsContext)
-        
-        let result = jsContext?
+        if js_cb == nil {
+            print("No callback")
+            return "Error: No callback"
+        }
+        jsContext?
             .objectForKeyedSubscript("getToken")
-            .call(withArguments: [selectedItem?.secretKey!, js_cb])
+            .call(withArguments: [selectedItem?.secretKey! as Any, js_cb!])
         
         return ""
     }
     
     private func updateCode(){
-        getKey((selectedItem?.secretKey!)!, cb: {value in
+        _ = getKey((selectedItem?.secretKey!)!, cb: {value in
             authCode = value!.toString()
             loading = false
             return
         })
+    }
+    private func getIndex(_ item: Item) -> Int {
+        guard let idx = allItems.firstIndex(where: {$0.id == item.id}) else { return -1 }
+        return idx
+    }
+    
+    private func incrementCopies(){
+        if (selectedItem == nil){return}
+        let idx = getIndex(selectedItem!)
+        if allItems[idx].timesCopied < 1 {
+            allItems[idx].timesCopied = 0
+        }
+        allItems[idx].lastCopied = Date()
+        allItems[idx].timesCopied += 1
+    }
+    
+    //TODO: Reset copies UI
+    private func resetCopies(){
+        if (selectedItem == nil){return}
+        let idx = getIndex(selectedItem!)
+        allItems[idx].timesCopied = 0
+    }
+    
+    private func updateView(){
+        do {
+            try viewContext.save()
+            selectedItem = allItems.first(where: {$0.id == selectedItem?.id})
+        } catch {
+            print("View save [updateView]", error.localizedDescription)
+        }
     }
     
     private func formatDate(date: Date) -> String{
@@ -129,19 +166,19 @@ struct ContentView: View {
                                 } else {
                                     Text("There was an error: \(error)")
                                 }
-                                Text(selectedItem?.label ?? "No label")
+                                Text("\(selectedItem?.label ?? "") - \(selectedItem?.accountName ?? "")")
                                 Text("\(text["created_on"]!) \(formatDate(date: (selectedItem?.dateCreated)!))")
                                     .padding(.top)
                                     .opacity(0.4)
                                     .font(.body)
                                     .italic()
                                 //TODO: Figure out why this doesn't work
-                                //if ((selectedItem?.timesCopied ?? 0) > 0){
-                                    Text("\(text["last_copied"]!) \(formatDate(date: (selectedItem?.lastCopied)!))")
+                                if ((selectedItem?.timesCopied ?? 0) > 0){
+                                    Text("\(text["last_copied"]!) \(formatDate(date: (selectedItem?.lastCopied)!)) (Copied \(selectedItem!.timesCopied.description.components(separatedBy: ".")[0]) times)")
                                         .opacity(0.4)
                                         .font(.body)
                                         .italic()
-                                //}
+                                }
                             }.task {
                                 if selectedItem == nil {
                                     return
@@ -181,19 +218,12 @@ struct ContentView: View {
                 }
                 // End zstack
             }.onTapGesture {
-                if selectedItem != nil && authCode != nil && loading != true {
+                if selectedItem != nil && !authCode.isEmpty && loading != true {
                     justCopied = true
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.writeObjects([authCode as NSString])
-                    do {
-                        if selectedItem?.timesCopied == nil {
-                            selectedItem?.timesCopied = 0
-                        }
-                        selectedItem?.timesCopied = selectedItem?.timesCopied ?? 0 + 1
-                        try viewContext.save()
-                    } catch {
-                        print(error.localizedDescription)
-                    }
+                    incrementCopies()
+                    updateView()
                     Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { timer in
                         justCopied = false
                     }
@@ -231,7 +261,7 @@ func initializeJS(){
             jsContext!.evaluateScript(jsSourceContents)
         }
         catch {
-            print(error.localizedDescription)
+            print("Init JS: ", error.localizedDescription)
         }
     }
 }
@@ -277,9 +307,9 @@ struct AddItem: View {
             item.dateCreated = Date()
             item.uuid = UUID()
             item.accountName = (parsed["account"] as? String) ?? ""
-            item.label = parsed["name"] as! String
-            item.secretKey = parsed["secret"] as! String
-            item.type = parsed["type"] as! String
+            item.label = (parsed["name"] as! String)
+            item.secretKey = (parsed["secret"] as! String)
+            item.type = (parsed["type"] as! String)
             try viewContext.save()
         } catch {
             print(error.localizedDescription)
@@ -410,5 +440,23 @@ extension String
     func decodeUrl() -> String?
     {
         return self.removingPercentEncoding
+    }
+}
+
+
+struct RefreshButton: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let width = rect.size.width
+        let height = rect.size.height
+        path.move(to: CGPoint(x: 0.76523*width, y: 0.76523*height))
+        path.addLine(to: CGPoint(x: 0.19961*width, y: 0.3582*height))
+        path.addLine(to: CGPoint(x: 0.31172*width, y: 0.3582*height))
+        path.addLine(to: CGPoint(x: 0.12422*width, y: 0))
+        path.addLine(to: CGPoint(x: 0, y: 0.20195*height))
+        path.addLine(to: CGPoint(x: 0, y: 0.31406*height))
+        path.addLine(to: CGPoint(x: 0.23477*width, y: 0.23477*height))
+        path.closeSubpath()
+        return path
     }
 }
