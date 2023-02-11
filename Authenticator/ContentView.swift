@@ -19,10 +19,12 @@ var text = [
     "copied": "Copied!",
     "click_to_copy": "Click anywhere to copy",
     "nothing_yet": "Nothing here yet, add a new auth URL?",
+    "edit_title": "Edit item",
 ]
 
 struct ContentView: View {
     @State var addingItem = false
+    @State var editingItem = true
     @State var selectedItem: Item? = nil
     @Environment(\.managedObjectContext) private var viewContext
     
@@ -139,6 +141,11 @@ struct ContentView: View {
                 .navigationTitle(text["auth_accounts"]!)
                 .listStyle(.sidebar)
                 .toolbar {
+                    ToolbarItem(placement: .navigation){
+                        Button(action: toggleSidebar, label: {
+                            Image(systemName: "sidebar.leading")
+                        })
+                    }
                     ToolbarItem {
                         Button(action: {
                             addingItem.toggle()
@@ -166,7 +173,17 @@ struct ContentView: View {
                                 } else {
                                     Text("There was an error: \(error)")
                                 }
-                                Text("\(selectedItem?.label ?? "") - \(selectedItem?.accountName ?? "")")
+                                HStack {
+                                    if ((selectedItem?.accountName ?? nil) != nil && !selectedItem!.accountName!.isEmpty) {
+                                        Text("\(selectedItem?.label ?? "") - \(selectedItem?.accountName ?? "")")
+                                    } else {
+                                        Text("\(selectedItem?.label ?? "")")
+                                    }
+                                    Image(systemName: "square.and.pencil")
+                                        .onTapGesture {
+                                            editingItem = true
+                                        }
+                                }
                                 Text("\(text["created_on"]!) \(formatDate(date: (selectedItem?.dateCreated)!))")
                                     .padding(.top)
                                     .opacity(0.4)
@@ -233,7 +250,18 @@ struct ContentView: View {
             .sheet(isPresented: $addingItem, content: {
                 AddItem(addingItem: $addingItem).environment(\.managedObjectContext, CoreDataManager.shared.persistentContainer.viewContext)
             })
+            .sheet(isPresented: $editingItem, content: {
+                EditItem(item: $selectedItem).environment(\.managedObjectContext, viewContext)
+            })
         }
+    }
+    
+    
+    private func toggleSidebar() {
+            #if os(iOS)
+            #else
+            NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil)
+            #endif
     }
 }
 
@@ -281,6 +309,57 @@ class ItemClass: NSObject {
         self.secretKey = secretKey
         self.type = type
         self.account = account ?? ""
+    }
+}
+struct EditItem: View {
+    @Binding var item: Item
+    @State var disabled = true
+    @Environment (\.managedObjectContext) private var viewContext
+    
+    private func updateOtp(){}
+    var body: some View {
+        var body: some View {
+            VStack(alignment: .trailing) {
+                Button {
+                    presentationMode.wrappedValue.dismiss()
+                } label: {
+                    Image(systemName: "x.circle")
+                        .font(.title2)
+                }
+                .buttonStyle(.plain)
+                .opacity(0.3)
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                Spacer()
+            }
+            VStack(alignment: .center){
+                
+                Button(action: {
+                    if disabled {return} else {
+                        updateOtp()
+                        addingItem = false
+                    }
+                }, label: {
+                    Text("Save")
+                })
+                .niceButton(
+                    foregroundColor: disabled ? Color.gray : Color.white,
+                    backgroundColor: disabled ?  Color.gray.opacity(0) : Color.accentColor
+                )
+                .border(disabled ? .gray : Color.gray.opacity(0))
+                .cornerRadius(5)
+                .opacity(disabled ? 0.3 : 1)
+                .onHover { inside in
+                    if inside && disabled {
+                        NSCursor.operationNotAllowed.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
+            }
+                .frame(minWidth: 500.0)
+                .padding(.all, 30.0)
+        }
     }
 }
 
@@ -357,16 +436,16 @@ struct AddItem: View {
                 foregroundColor: disabled ? Color.gray : Color.white,
                 backgroundColor: disabled ?  Color.gray.opacity(0) : Color.accentColor
             )
-                .border(disabled ? .gray : Color.gray.opacity(0))
-                .cornerRadius(5)
-                .opacity(disabled ? 0.3 : 1)
-                .onHover { inside in
-                    if inside && disabled {
-                        NSCursor.operationNotAllowed.push()
-                    } else {
-                        NSCursor.pop()
-                    }
+            .border(disabled ? .gray : Color.gray.opacity(0))
+            .cornerRadius(5)
+            .opacity(disabled ? 0.3 : 1)
+            .onHover { inside in
+                if inside && disabled {
+                    NSCursor.operationNotAllowed.push()
+                } else {
+                    NSCursor.pop()
                 }
+            }
         }
             .frame(minWidth: 500.0)
             .padding(.all, 30.0)
@@ -443,20 +522,9 @@ extension String
     }
 }
 
-
-struct RefreshButton: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let width = rect.size.width
-        let height = rect.size.height
-        path.move(to: CGPoint(x: 0.76523*width, y: 0.76523*height))
-        path.addLine(to: CGPoint(x: 0.19961*width, y: 0.3582*height))
-        path.addLine(to: CGPoint(x: 0.31172*width, y: 0.3582*height))
-        path.addLine(to: CGPoint(x: 0.12422*width, y: 0))
-        path.addLine(to: CGPoint(x: 0, y: 0.20195*height))
-        path.addLine(to: CGPoint(x: 0, y: 0.31406*height))
-        path.addLine(to: CGPoint(x: 0.23477*width, y: 0.23477*height))
-        path.closeSubpath()
-        return path
+extension View {
+    func Print(_ vars: Any...) -> some View {
+        for v in vars { print(v) }
+        return EmptyView()
     }
 }
